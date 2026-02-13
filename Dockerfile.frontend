@@ -2,18 +2,18 @@ FROM node:20-alpine
 
 WORKDIR /app
 
-# Copy package files from frontend directory
-COPY frontend/package*.json ./
+# Copy package files (context is ./frontend, so package.json is at root of context)
+COPY package*.json ./
 
 # Install dependencies
 RUN apk add --no-cache curl
 RUN npm install
 
-# Copy frontend source code
-COPY frontend/ .
+# Copy source code (context is ./frontend, so copy everything in context)
+COPY . .
 
 # Expose Next.js port
 EXPOSE 3000
 
-# Run in dev mode for development environment
+# Run in dev mode
 CMD ["npm", "run", "dev"]

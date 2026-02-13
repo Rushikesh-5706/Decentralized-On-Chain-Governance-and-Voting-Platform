@@ -48,6 +48,26 @@ async function main() {
         JSON.stringify(addresses, null, 2)
     );
     console.log("Addresses written to addresses.json");
+
+    // Copy ABIs
+    const artifactsSrc = path.join(hre.config.paths.root, "artifacts/contracts");
+
+    // Helper to copy file
+    const copyArtifact = (contractPath, contractName) => {
+        const src = path.join(artifactsSrc, contractPath, `${contractName}.json`);
+        const destDir = path.join(artifactsDir, "contracts", contractPath);
+
+        if (!fs.existsSync(destDir)) {
+            fs.mkdirSync(destDir, { recursive: true });
+        }
+
+        const dest = path.join(destDir, `${contractName}.json`);
+        fs.copyFileSync(src, dest);
+        console.log(`Copied ${contractName}.json to ${dest}`);
+    };
+
+    copyArtifact("GovernanceToken.sol", "GovernanceToken");
+    copyArtifact("MyGovernor.sol", "MyGovernor");
 }
 
 main()
