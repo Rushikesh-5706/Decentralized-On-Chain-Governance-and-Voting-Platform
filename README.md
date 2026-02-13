@@ -43,6 +43,14 @@ graph TD
     - Participants use a voting power budget determined at the proposal snapshot.
     - All calculations are performed on-chain using 18-decimal precision to ensure mathematical integrity and prevent scaling overflows.
 
+    **Cost Examples:**
+    | Desired Votes | Token Cost (Voting Power) |
+    | :--- | :--- |
+    | 1 Vote | 1 Token |
+    | 5 Votes | 25 Tokens |
+    | 10 Votes | 100 Tokens |
+    | 100 Votes | 10,000 Tokens |
+
 ### Security Implementation
 
 - **Proposal Threshold Enforcement**: Validates that only users with sufficient delegated voting power (default: 1000 Tokens) can initiate proposals.
