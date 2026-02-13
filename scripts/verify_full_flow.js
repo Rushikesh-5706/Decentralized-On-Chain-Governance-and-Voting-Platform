@@ -80,56 +80,65 @@ async function main() {
     const proposalIdQV = events2[1].args[0];
     console.log(`   QV Proposal ID: ${proposalIdQV}`);
 
-    // 6. Cast Quadratic Vote (The Real Math Check)
+    // MUST mine a block so the snapshot is in the past!
+    await network.provider.send("evm_mine");
+
+    // 6. Cast Quadratic Vote (The New Power Check)
     // Scenario: User wants 4 votes.
-    // Formula: Votes = Sqrt(Cost)
-    // Therefore: Cost = Votes^2 = 4^2 = 16 tokens.
-
-    console.log("\n🗳️  Testing Quadratic Voting Math...");
+    // Cost = Votes^2 = 4^2 = 16 voting power units.
+    console.log("\n🗳️  Testing Quadratic Voting Power Math...");
     const votesDesired = 4n;
-    const costTokens = votesDesired * votesDesired; // 16
-    const costWei = ethers.parseEther(costTokens.toString());
+    const numVotesWei = ethers.parseEther(votesDesired.toString());
+    const expectedCostWei = ethers.parseEther((votesDesired * votesDesired).toString());
 
-    console.log(`   Target: ${votesDesired} votes`);
-    console.log(`   Cost:   ${costTokens} tokens (${costWei} wei)`);
+    console.log(`   Target: ${votesDesired} votes (${numVotesWei} wei)`);
+    console.log(`   Expected Cost: ${votesDesired * votesDesired} power (${expectedCostWei} wei)`);
 
-    // Approve Governor to spend tokens
-    await token.connect(user1).approve(govAddr, costWei);
+    // Get power before
+    const [powerBefore] = await governor.getQuadraticVotingPower(proposalIdQV, user1.address);
+    console.log(`   Power Before: ${ethers.formatEther(powerBefore)}`);
 
-    // Cast Vote
+    // Cast Vote (Passing numVotes, NOT cost)
     console.log("   Casting vote...");
-    await governor.connect(user1).castQuadraticVote(proposalIdQV, 1, costWei); // 1 = For
+    const castTx = await governor.connect(user1).castQuadraticVote(proposalIdQV, 1, numVotesWei);
+    await castTx.wait();
 
     // Verify Result
     const proposalVotes = await governor.proposalVotes(proposalIdQV);
-    const forVotesWei = proposalVotes[1];
+    const forVotesWei = proposalVotes.forVotes;
     const forVotesTokens = ethers.formatEther(forVotesWei);
 
-    console.log(`   Example Result: ${forVotesTokens} Votes registered`);
+    console.log(`   Result: ${forVotesTokens} Votes registered`);
 
-    const expectedVotes = "4.0";
-    if (forVotesTokens === expectedVotes) {
-        console.log("   ✅ SUCCESS: 16 Tokens yielded exactly 4 Votes.");
+    if (forVotesTokens === "4.0") {
+        console.log("   ✅ SUCCESS: 4.0 Votes registered correctly.");
     } else {
         console.error(`   ❌ FAILURE: Expected 4.0 votes, got ${forVotesTokens}`);
         process.exit(1);
     }
 
-    // 7. Verify Perfect Square Check (Negative Test)
-    console.log("\n🧪 Testing Imperfect Square Revert...");
-    const badCost = ethers.parseEther("15"); // Sqrt(15) is irrational
-    await token.connect(user1).approve(govAddr, badCost);
+    const [powerAfter] = await governor.getQuadraticVotingPower(proposalIdQV, user1.address);
+    const powerUsed = powerBefore - powerAfter;
+    console.log(`   Power Used: ${ethers.formatEther(powerUsed)}`);
+
+    if (powerUsed === expectedCostWei) {
+        console.log("   ✅ SUCCESS: 16.0 Voting Power consumed correctly.");
+    } else {
+        console.error(`   ❌ FAILURE: Expected 16.0 power used, got ${ethers.formatEther(powerUsed)}`);
+        process.exit(1);
+    }
+
+    // 7. Negative Test: Insufficient Power
+    console.log("\n🧪 Testing Insufficient Power Revert...");
+    // user1 has 10k power. Buy 200 votes -> cost 40k. Should fail.
+    const tooManyVotes = ethers.parseEther("200");
 
     try {
-        await governor.connect(user1).castQuadraticVote(proposalIdQV, 1, badCost);
-        console.error("   ❌ FAILURE: Imperfect square should have reverted!");
+        await governor.connect(user1).castQuadraticVote(proposalIdQV, 1, tooManyVotes);
+        console.error("   ❌ FAILURE: Insufficient power should have reverted!");
         process.exit(1);
     } catch (error) {
-        if (error.message.includes("perfect square")) {
-            console.log("   ✅ CORRECT: Reverted with 'cost must be perfect square'");
-        } else {
-            console.log(`   ✅ Reverted as expected (Error: ${error.message})`);
-        }
+        console.log("   ✅ CORRECT: Reverted as expected (Error: " + error.message.split('\n')[0] + ")");
     }
 
     console.log("\n🎉 ALL SYSTEMS GO. PROTOCOL IS SECURE.");

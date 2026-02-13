@@ -5,18 +5,9 @@ import { ethers, BrowserProvider, Contract } from "ethers";
 import { Copy, Vote, ExternalLink, Loader2, Plus, Wallet, AlertCircle } from "lucide-react";
 import clsx from "clsx";
 
-// Load contract artifacts with error handling
-let addresses: any = { token: "", governor: "" };
-let GovernanceTokenABI: any = { abi: [] };
-let MyGovernorABI: any = { abi: [] };
-
-try {
-  addresses = require("../src/artifacts/addresses.json");
-  GovernanceTokenABI = require("../src/artifacts/contracts/GovernanceToken.sol/GovernanceToken.json");
-  MyGovernorABI = require("../src/artifacts/contracts/MyGovernor.sol/MyGovernor.json");
-} catch (error) {
-  console.error("Failed to load contract artifacts:", error);
-}
+const addresses = require("../src/artifacts/addresses.json");
+const GovernanceTokenABI = require("../src/artifacts/contracts/GovernanceToken.sol/GovernanceToken.json");
+const MyGovernorABI = require("../src/artifacts/contracts/MyGovernor.sol/MyGovernor.json");
 
 // Types
 type Proposal = {
@@ -202,46 +193,30 @@ export default function Home() {
       setLoading(true);
       setError(null);
 
-      // Check if user has enough tokens
-      const minTokens = await governor.proposalThreshold();
-      const userBalance = await token.balanceOf(account);
+      const [threshold, userBalance] = await Promise.all([
+        governor.proposalThreshold(),
+        token.balanceOf(account)
+      ]);
 
-      if (userBalance < minTokens) {
-        setError(`Insufficient tokens. Need ${ethers.formatEther(minTokens)} GT, have ${ethers.formatEther(userBalance)} GT`);
+      if (userBalance < threshold) {
+        setError(`Insufficient voting power. Required: ${ethers.formatEther(threshold)} GT`);
         setLoading(false);
         return;
       }
 
-      // Simple proposal: transfer 0 tokens to self (dummy action)
-      const encodedFunction = token.interface.encodeFunctionData("transfer", [account, 0]);
+      const calldata = token.interface.encodeFunctionData("transfer", [account, 0]);
 
-      let tx;
-      if (votingType === 1) {
-        // Quadratic voting proposal
-        tx = await governor["propose(address[],uint256[],bytes[],string,uint8)"](
-          [addresses.token],
-          [0],
-          [encodedFunction],
-          desc,
-          1 // VotingType.Quadratic
-        );
-      } else {
-        // Standard voting proposal
-        tx = await governor["propose(address[],uint256[],bytes[],string)"](
-          [addresses.token],
-          [0],
-          [encodedFunction],
-          desc
-        );
-      }
+      const tx = (votingType === 1)
+        ? await governor["propose(address[],uint256[],bytes[],string,uint8)"]([addresses.token], [0], [calldata], desc, 1)
+        : await governor["propose(address[],uint256[],bytes[],string)"]([addresses.token], [0], [calldata], desc);
 
       await tx.wait();
       await refreshData(governor, token, account);
       setDesc("");
-      alert("Proposal created successfully!");
+      alert("Proposal submitted to the governance protocol.");
     } catch (e: any) {
-      console.error("Create proposal error:", e);
-      setError("Failed to create proposal: " + (e.reason || e.message));
+      console.error("Proposal error:", e);
+      setError(e.reason || e.message);
     } finally {
       setLoading(false);
     }
@@ -254,105 +229,38 @@ export default function Home() {
       setLoading(true);
       setError(null);
 
+      let tx;
       if (isQV) {
-        // Calculate quadratic cost
-        const costStr = prompt(
-          "Enter tokens to spend (you'll get sqrt(cost) votes):\n\n" +
-          "Examples:\n" +
-          "- 1 token → 1 vote\n" +
-          "- 4 tokens → 2 votes\n" +
-          "- 9 tokens → 3 votes\n" +
-          "- 16 tokens → 4 votes\n\n" +
-          "Cost must be a perfect square!",
-          "1"
-        );
+        const input = prompt("Enter number of votes to cast (Quadratic Cost = Votes²):");
+        if (!input) return;
 
-        if (!costStr) return;
-
-        const costTokens = parseFloat(costStr);
-
-        // Validation
-        if (isNaN(costTokens) || costTokens <= 0) {
-          setError("Invalid cost: must be a positive number");
-          setLoading(false);
+        const numVotes = parseFloat(input);
+        if (isNaN(numVotes) || numVotes <= 0) {
+          setError("Invalid vote quantity");
           return;
         }
 
-        if (!Number.isInteger(costTokens)) {
-          setError("Invalid cost: must be a whole number");
-          setLoading(false);
+        const cost = numVotes * numVotes;
+        const available = parseFloat(votingPower);
+
+        if (cost > available) {
+          setError(`Insufficient voting power budget. Cost: ${cost} | Available: ${available}`);
           return;
         }
 
-        // Check if perfect square
-        const votes = Math.sqrt(costTokens);
-        if (!Number.isInteger(votes)) {
-          const prevSquare = Math.floor(votes) ** 2;
-          const nextSquare = Math.ceil(votes) ** 2;
-          setError(
-            `${costTokens} is not a perfect square!\n` +
-            `Try ${prevSquare} tokens (${Math.floor(votes)} votes) or ` +
-            `${nextSquare} tokens (${Math.ceil(votes)} votes)`
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Convert to wei
-        const costWei = ethers.parseEther(costTokens.toString());
-
-        // Check balance
-        const userBalance = await token.balanceOf(account);
-        if (userBalance < costWei) {
-          setError(`Insufficient balance. Need ${costTokens} GT, have ${ethers.formatEther(userBalance)} GT`);
-          setLoading(false);
-          return;
-        }
-
-        // Check voting power
-        const power = await token.getVotes(account);
-        if (power < costWei) {
-          setError(
-            `Insufficient voting power. You need to have delegated votes.\n` +
-            `Power: ${ethers.formatEther(power)} GT, Need: ${costTokens} GT\n` +
-            `Click "Delegate to Self" to activate your voting power.`
-          );
-          setLoading(false);
-          return;
-        }
-
-        // Approve governor to spend tokens
-        const allowance = await token.allowance(account, addresses.governor);
-        if (allowance < costWei) {
-          console.log("Approving tokens...");
-          const txApprove = await token.approve(addresses.governor, costWei);
-          await txApprove.wait();
-        }
-
-        // Cast quadratic vote
-        console.log(`Casting QV: ${costTokens} tokens → ${votes} votes, support: ${support}`);
-        const tx = await governor.castQuadraticVote(proposalId, support, costWei);
-        await tx.wait();
-
-        alert(`Vote cast! You spent ${costTokens} tokens for ${votes} votes.`);
+        tx = await governor.castQuadraticVote(proposalId, support, ethers.parseEther(numVotes.toString()));
       } else {
-        // Standard voting
-        const power = await token.getVotes(account);
-        if (power === 0n) {
-          setError("No voting power. Click 'Delegate to Self' first!");
-          setLoading(false);
-          return;
-        }
-
-        const tx = await governor.castVote(proposalId, support);
-        await tx.wait();
-        alert("Vote cast successfully!");
+        tx = await governor.castVote(proposalId, support);
       }
 
+      await tx.wait();
+      alert("Vote successfully recorded on-chain.");
       await refreshData(governor, token, account);
     } catch (e: any) {
       console.error("Vote error:", e);
-      setError("Failed to vote: " + (e.reason || e.message));
+      // Attempt to parse custom errors from the contract
+      const errorMsg = e.reason || e.data?.message || e.message;
+      setError(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -681,8 +589,7 @@ export default function Home() {
                     alert("Failed to add network automatically. Please add http://localhost:8545 manually.");
                   }
                 } else {
-                  console.error("Failed to switch network:", switchError);
-                  alert("Failed to switch network: " + switchError.message);
+                  console.error("Network switch failed:", switchError);
                 }
               }
             }}

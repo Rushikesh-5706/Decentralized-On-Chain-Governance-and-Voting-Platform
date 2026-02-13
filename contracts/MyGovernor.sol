@@ -7,51 +7,82 @@ import "@openzeppelin/contracts/governance/extensions/GovernorCountingSimple.sol
 import "@openzeppelin/contracts/governance/extensions/GovernorVotes.sol";
 import "@openzeppelin/contracts/governance/extensions/GovernorVotesQuorumFraction.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import "@openzeppelin/contracts/utils/Pausable.sol";
+import "@openzeppelin/contracts/access/Ownable.sol";
+
+/**
+ * @title MyGovernor
+ * @author Optimized AI Engineer
+ * @notice A governance contract supporting both Standard (1 Token 1 Vote) and Quadratic Voting (QV).
+ * @dev Optimized for gas efficiency using custom errors and adhering to professional NatSpec standards.
+ */
+contract MyGovernor is 
+    Governor, 
+    GovernorSettings, 
+    GovernorCountingSimple, 
+    GovernorVotes, 
+    GovernorVotesQuorumFraction,
+    ReentrancyGuard,
+    Pausable,
+    Ownable
+{
+    /**
+     * @notice Types of voting mechanisms supported by the protocol.
+     */
+    enum VotingType { Standard, Quadratic }
+
+    /* Custom Errors for Gas Optimization */
+    error MyGovernor__BelowProposalThreshold(uint256 votes, uint256 threshold);
+    error MyGovernor__InvalidVotingType(uint256 proposalId);
+    error MyGovernor__ZeroVotesCast();
+    error MyGovernor__InsufficientVotingPower(uint256 cost, uint256 available);
 
     /**
-     * @title MyGovernor
-     * @dev Governor contract supporting both Standard (1T1V) and Quadratic Voting (QV).
-     * 
-     * Implements:
-     * 1. Quadratic Voting with square root calculation
-     * 2. Proposal threshold enforcement
-     * 3. Perfect square validation for QV
-     * 4. Decimal handling for 18-decimal tokens
+     * @notice Storage to track the voting mechanism assigned to each proposal.
      */
-contract MyGovernor is Governor, GovernorSettings, GovernorCountingSimple, GovernorVotes, GovernorVotesQuorumFraction {
-    
-    enum VotingType { Standard, Quadratic }
-    
-    /// @notice Mapping from proposalId to its VotingType
     mapping(uint256 => VotingType) public proposalVotingTypes;
     
-    /// @notice Minimum tokens required to create a proposal (in wei)
+    /**
+     * @notice Minimum voting power (delegated) required to submit a proposal.
+     */
     uint256 public immutable minProposalTokens;
     
-    /// @notice Reference to the governance token
-    IERC20 private immutable _token;
-    
-    /// @notice Track how much each user has spent on QV for each proposal
-    mapping(uint256 => mapping(address => uint256)) private _quadraticSpent;
+    /**
+     * @dev Tracks the accumulation of votes cast per user per proposal in QV mode.
+     */
+    mapping(uint256 => mapping(address => uint256)) private _quadraticVotesUsed;
 
+    /**
+     * @dev Tracks the accumulated voting power (cost) consumed per user per proposal in QV mode.
+     */
+    mapping(uint256 => mapping(address => uint256)) private _quadraticCostUsed;
+
+    /**
+     * @param _tokenVotes The ERC20Votes compatible token used for governance.
+     */
     constructor(IVotes _tokenVotes)
         Governor("MyGovernor")
         GovernorSettings(
-            0,              // voting delay: 0 blocks (proposals start immediately)
-            50400,          // voting period: ~1 week assuming 12s blocks
+            0,              // voting delay: 0 blocks
+            50400,          // voting period: ~1 week
             1000 * 10**18   // proposal threshold: 1000 tokens
         )
         GovernorVotes(_tokenVotes)
-        GovernorVotesQuorumFraction(4) // 4% Quorum
+        GovernorVotesQuorumFraction(4) // 4% Quorum requirement
+        Ownable(msg.sender)
     {
-        minProposalTokens = 1000 * 10**18; // 1000 tokens required to propose
-        _token = IERC20(address(_tokenVotes));
+        minProposalTokens = 1000 * 10**18;
     }
 
     /**
-     * @dev Create a proposal with a specific VotingType.
-     * Enforces minimum token balance requirement.
+     * @notice Submits a proposal with a designated voting mechanism.
+     * @param targets Target addresses for proposal execution.
+     * @param values Ether values for execution.
+     * @param calldatas Encoded function calls.
+     * @param description Text description of the proposal.
      * @param votingType The mechanism to use (Standard or Quadratic).
+     * @return proposalId Unique identifier of the created proposal.
      */
     function propose(
         address[] memory targets,
@@ -59,12 +90,11 @@ contract MyGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gover
         bytes[] memory calldatas,
         string memory description,
         VotingType votingType
-    ) public returns (uint256) {
-        // Check proposer has enough tokens to meet threshold
-        require(
-            _token.balanceOf(msg.sender) >= minProposalTokens,
-            "Governor: proposer balance below threshold"
-        );
+    ) public whenNotPaused returns (uint256) {
+        uint256 playerVotes = getVotes(msg.sender, block.number - 1);
+        if (playerVotes < minProposalTokens) {
+            revert MyGovernor__BelowProposalThreshold(playerVotes, minProposalTokens);
+        }
         
         uint256 proposalId = super.propose(targets, values, calldatas, description);
         proposalVotingTypes[proposalId] = votingType;
@@ -72,20 +102,18 @@ contract MyGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gover
     }
 
     /**
-     * @dev Override standard propose to default to Standard voting.
-     * Also enforces minimum token balance.
+     * @notice Overridden propose function defaulting to Standard voting mechanism.
      */
     function propose(
         address[] memory targets,
         uint256[] memory values,
         bytes[] memory calldatas,
         string memory description
-    ) public override(Governor) returns (uint256) {
-        // Check proposer has enough tokens to meet threshold
-        require(
-            _token.balanceOf(msg.sender) >= minProposalTokens,
-            "Governor: proposer balance below threshold"
-        );
+    ) public override(Governor) whenNotPaused returns (uint256) {
+        uint256 playerVotes = getVotes(msg.sender, block.number - 1);
+        if (playerVotes < minProposalTokens) {
+            revert MyGovernor__BelowProposalThreshold(playerVotes, minProposalTokens);
+        }
         
         uint256 proposalId = super.propose(targets, values, calldatas, description);
         proposalVotingTypes[proposalId] = VotingType.Standard;
@@ -93,40 +121,45 @@ contract MyGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gover
     }
 
     /**
-     * @dev Dedicated function for quadratic voting.
-     * User specifies the COST in tokens (wei), and gets sqrt(cost) votes.
-     * @param proposalId The proposal to vote on
-     * @param support Vote type: 0=Against, 1=For, 2=Abstain
-     * @param cost Amount of tokens (in wei) to spend. Must be a perfect square when converted to token units.
+     * @notice Performs Quadratic Voting where cost = (votes * votes) / 1e18.
+     * @dev Uses voting power snapshots; no actual token transfers occur.
+     * @param proposalId ID of the active proposal.
+     * @param support Against (0), For (1), or Abstain (2).
+     * @param numVotes Number of votes (in 1e18 units) to cast.
      */
     function castQuadraticVote(
         uint256 proposalId,
         uint8 support,
-        uint256 cost
-    ) external returns (uint256) {
-        require(
-            proposalVotingTypes[proposalId] == VotingType.Quadratic,
-            "Governor: proposal is not quadratic"
-        );
-        require(cost > 0, "Governor: cost must be greater than 0");
+        uint256 numVotes
+    ) external nonReentrant whenNotPaused returns (uint256) {
+        if (proposalVotingTypes[proposalId] != VotingType.Quadratic) {
+            revert MyGovernor__InvalidVotingType(proposalId);
+        }
+        if (numVotes == 0) {
+            revert MyGovernor__ZeroVotesCast();
+        }
         
-        bytes memory params = abi.encode(cost);
-        return _castVote(proposalId, _msgSender(), support, "", params);
-    }
-
-    function proposalThreshold()
-        public
-        view
-        override(Governor, GovernorSettings)
-        returns (uint256)
-    {
-        return minProposalTokens;
+        address account = _msgSender();
+        
+        // Mathematical Model: Cost = (Votes^2) / Precision
+        uint256 cost = (numVotes * numVotes) / 1e18;
+        
+        uint256 totalPower = getVotes(account, proposalSnapshot(proposalId));
+        uint256 alreadyUsed = _quadraticCostUsed[proposalId][account];
+        
+        if (alreadyUsed + cost > totalPower) {
+            revert MyGovernor__InsufficientVotingPower(cost, totalPower - alreadyUsed);
+        }
+        
+        _quadraticVotesUsed[proposalId][account] += numVotes;
+        _quadraticCostUsed[proposalId][account] += cost;
+        
+        bytes memory params = abi.encode(numVotes);
+        return _castVote(proposalId, account, support, "", params);
     }
 
     /**
-     * @dev Internal function to count votes.
-     * Implements Quadratic Voting logic: votes = sqrt(cost).
-     * Cost is calculated in token units, not wei, to establish a human-readable cost basis.
+     * @dev Overridden to incorporate Quadratic Voting weights.
      */
     function _countVote(
         uint256 proposalId,
@@ -138,61 +171,55 @@ contract MyGovernor is Governor, GovernorSettings, GovernorCountingSimple, Gover
         uint256 countedWeight = weight;
 
         if (proposalVotingTypes[proposalId] == VotingType.Quadratic && params.length > 0) {
-            uint256 cost = abi.decode(params, (uint256));
-            require(cost > 0, "Governor: quadratic cost required");
-            
-            // Convert from wei to token units for calculation
-            // This prevents overflow and allows human-readable perfect squares
-            uint256 costTokens = cost / 1e18;
-            require(costTokens > 0, "Governor: cost too small");
-            
-            // Calculate square root
-            uint256 rootTokens = _sqrt(costTokens);
-            
-            // Verify perfect square
-            // This prevents users from gaming the system with fractional votes
-            require(
-                rootTokens * rootTokens == costTokens,
-                "Governor: cost must be perfect square"
-            );
-            
-            // Convert back to wei for consistency with ERC20Votes
-            uint256 countedVotes = rootTokens * 1e18;
-
-            // Verify user hasn't exceeded their voting power
-            uint256 spent = _quadraticSpent[proposalId][account];
-            require(cost <= weight - spent, "Governor: insufficient voting power");
-            _quadraticSpent[proposalId][account] = spent + cost;
-
-            // Transfer tokens before counting vote
-            // This ensures user has approved and has sufficient balance
-            require(
-                _token.allowance(account, address(this)) >= cost,
-                "Governor: insufficient allowance"
-            );
-            bool success = _token.transferFrom(account, address(this), cost);
-            require(success, "Governor: token transfer failed");
-
-            countedWeight = countedVotes;
+            countedWeight = abi.decode(params, (uint256));
         }
 
         return super._countVote(proposalId, account, support, countedWeight, params);
     }
+    
+    /**
+     * @notice Returns the proposal threshold in 1e18 units.
+     */
+    function proposalThreshold() public view override(Governor, GovernorSettings) returns (uint256) {
+        return minProposalTokens;
+    }
+    
+    /**
+     * @notice Provides detailed data regarding a user's QV power consumption.
+     * @return remaining Unused voting power.
+     * @return used Power already consumed in cost increments.
+     * @return total Total snapshot-based power.
+     */
+    function getQuadraticVotingPower(uint256 proposalId, address account) external view returns (uint256 remaining, uint256 used, uint256 total) {
+        total = getVotes(account, proposalSnapshot(proposalId));
+        used = _quadraticCostUsed[proposalId][account];
+        remaining = total > used ? total - used : 0;
+    }
 
     /**
-     * @dev Calculate integer square root using Babylonian method.
-     * @param x The number to calculate square root of
-     * @return y The integer square root
+     * @notice Emergency administrative pause.
      */
-    function _sqrt(uint256 x) private pure returns (uint256 y) {
-        if (x == 0) {
-            return 0;
-        }
-        uint256 z = (x + 1) / 2;
-        y = x;
-        while (z < y) {
-            y = z;
-            z = (x / z + z) / 2;
-        }
+    function pause() external onlyOwner {
+        _pause();
+    }
+
+    /**
+     * @notice Resume protocol operations.
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+
+    /**
+     * @dev Core voting internal logic protected by Pausable.
+     */
+    function _castVote(
+        uint256 proposalId,
+        address account,
+        uint8 support,
+        string memory reason,
+        bytes memory params
+    ) internal override whenNotPaused returns (uint256) {
+        return super._castVote(proposalId, account, support, reason, params);
     }
 }
