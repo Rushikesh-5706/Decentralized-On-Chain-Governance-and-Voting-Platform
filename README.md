@@ -2,6 +2,9 @@
 
 A high-integrity Decentralized Autonomous Organization (DAO) framework designed for secure on-chain decision-making. The platform integrates ERC-20 based governance with dual voting modalities: Standard (1T1V) and Quadratic Voting (QV). Built on the OpenZeppelin Governor standard, it ensures modularity, security, and scalability.
 
+![Governance Dashboard](./voting-interface.png)
+*Figure 1: The primary Governance Dashboard. This interface provides real-time visibility into active proposals, user voting power, and current proposal states (Active, Defeated, Succeeded). It allows users to seamlessly toggle between Standard and Quadratic voting modes during proposal creation.*
+
 ## System Architecture
 
 ```mermaid
@@ -47,6 +50,80 @@ graph TD
 - **Resource Protection**: Integrated `ReentrancyGuard` on all state-changing voting and proposal functions.
 - **Gas Efficiency**: Utilizes Custom Errors to reduce transaction overhead and improve on-chain revert clarity.
 
+## Deployment Guide
+
+Follow these steps to deploy the local governance infrastructure for development and testing.
+
+### Prerequisites
+
+- **Docker Desktop**: Required for container orchestration.
+- **Node.js (v18+)**: Needed for local script execution (optional if using Docker).
+- **MetaMask**: Browser extension for blockchain interaction.
+
+### Step 1: Initialize the Infrastructure
+
+The entire stack (Hardhat Node + Next.js Frontend) is containerized for immediate deployment.
+
+```bash
+# Start all services in detached mode
+docker-compose up --build -d
+```
+
+- **Blockchain Node**: accessible at `http://localhost:8545` (Chain ID: 31337)
+- **Web Interface**: accessible at `http://localhost:3000`
+
+*> Note: The automated deployment script creates 1,000,000 Governance Tokens (GT) and assigns them to the default deployer account.*
+
+### Step 2: Configure MetaMask
+
+To interact with the local blockchain, you must configure a custom network in MetaMask.
+
+1.  Open MetaMask Settings → Networks → **Add Network Manually**.
+2.  **Network Name**: `Hardhat Local`
+3.  **RPC URL**: `http://127.0.0.1:8545`
+4.  **Chain ID**: `31337`
+5.  **Currency Symbol**: `GO`
+6.  Click **Save**.
+
+**Import Testing Account:**
+Import the default Hardhat account to access the pre-minted tokens:
+- **Private Key**: `0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80`
+- **Balance**: 10,000 ETH (Testnet)
+
+### Step 3: Operational Workflow
+
+**1. Delegate Voting Power**
+Before voting, ERC-20 checkpoints must be activated.
+- Connect your wallet to the dashboard.
+- Click the **"Delegate to Self"** button. This snapshots your balance for voting eligibility.
+
+**2. Create a Proposal**
+- Click **"Create Proposal"**.
+- Enter a description (e.g., "Protocol Upgrade v2").
+- Select your voting mechanism: **Standard** (1T1V) or **Quadratic**.
+- Submit the transaction to on-chain storage.
+
+**3. Cast a Vote**
+- Once a proposal is mined (Active state), click **Vote**.
+- For Quadratic proposals, enter the numeric vote weight. The system will auto-calculate the power cost ($Votes^2$).
+
+![Transaction Confirmation](./transaction-request.png)
+*Figure 2: MetaMask Transaction Confirmation. This validation screen confirms the exact contract function being called (`castQuadraticVote`), ensuring transparency and security before the user signs the transaction.*
+
+## Protocol Verification
+
+To validate the mathematical integrity of the governance logic, execute the unified test suite:
+
+```bash
+# Run internal tests via Docker
+docker-compose exec hardhat-node npx hardhat test
+
+# Expected Output:
+# ✓ calculates cost accurately for 10 vote units
+# ✓ reverts on insufficient voting power budget
+# ... (7 passing)
+```
+
 ## Repository Structure
 
 ```text
@@ -62,45 +139,6 @@ graph TD
 └── hardhat.config.js   # Blockchain Development Configuration
 ```
 
-## Technical Stack
-
-- **Blockchain Environment**: Solidity ^0.8.24, Hardhat
-- **Smart Contract Standards**: OpenZeppelin Governor (GovernorSettings, GovernorVotes, GovernorVotesQuorumFraction)
-- **Frontend Infrastructure**: Next.js 14, Tailwind CSS, Lucide React
-- **Client-Chain Interaction**: Ethers.js v6
-
-## Getting Started
-
-### Prerequisites
-
-- Docker Desktop
-- Node.js (v18+)
-- MetaMask Browser Extension
-
-### Deployment via Docker (Recommended)
-
-To initialize the entire infrastructure (node + frontend + contract deployment), execute:
-
-```bash
-docker-compose up --build
-```
-
-The node will be available at `http://localhost:8545` (Chain ID: 31337) and the dashboard at `http://localhost:3000`.
-
-## Protocol Verification
-
-To execute the unified integration suite and verify the governance logic:
-
-```bash
-# Internal container execution
-docker-compose exec hardhat-node npx hardhat test
-
-# Local execution
-npm install
-npx hardhat test
-```
-
 ## License
 
 This project is licensed under the MIT License.
-
