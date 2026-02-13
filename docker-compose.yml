@@ -1,0 +1,49 @@
+version: '3.8'
+services:
+  # Service for the local Hardhat blockchain node
+  hardhat-node:
+    build:
+      context: .
+      dockerfile: Dockerfile.hardhat
+    ports:
+      - "8545:8545"
+    volumes:
+      - ./contracts:/app/contracts
+      - ./scripts:/app/scripts
+      - ./test:/app/test
+      - ./hardhat.config.js:/app/hardhat.config.js
+      - ./frontend/src/artifacts:/app/frontend/src/artifacts
+    environment:
+      - PRIVATE_KEY=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
+    command: /bin/sh -c "npx hardhat node --hostname 0.0.0.0 & sleep 10 && npx hardhat run scripts/deploy.js --network localhost && wait"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "-X", "POST", "--data", '{"jsonrpc":"2.0","method":"eth_blockNumber","params":[],"id":1}', "-H", "Content-Type: application/json", "http://localhost:8545" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # Service for the Next.js frontend
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+    ports:
+      - "3000:3000"
+    environment:
+      - NEXT_PUBLIC_RPC_URL=http://localhost:8545
+      # Since we are running in browser, we use localhost to connect to the node mapped port
+      # But for server-side fetching, we might need the service name. 
+      # For now, client-side wallet connects to localhost:8545
+    depends_on:
+      hardhat-node:
+        condition: service_healthy
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+    command: npx next dev -H 0.0.0.0
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:3000" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s

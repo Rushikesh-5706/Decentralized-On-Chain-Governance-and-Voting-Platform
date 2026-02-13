@@ -1,0 +1,19 @@
+FROM node:20-alpine
+
+WORKDIR /app
+
+# Copy package files
+COPY package*.json ./
+
+# Install dependencies
+RUN apk add --no-cache curl
+RUN npm install
+
+# Copy project files
+COPY . .
+
+# Expose Hardhat port
+EXPOSE 8545
+
+# Command is handled in docker-compose
+CMD ["npx", "hardhat", "node"]
