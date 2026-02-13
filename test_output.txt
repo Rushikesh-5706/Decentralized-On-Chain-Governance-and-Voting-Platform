@@ -1,0 +1,277 @@
+[dotenv@17.3.1] injecting env (0) from .env -- tip: 🔐 encrypt with Dotenvx: https://dotenvx.com
+
+
+  🎯 COMPREHENSIVE Governance Test Suite
+    1️⃣ Token & Delegation System
+      ✔ Should deploy with correct initial supply (72ms)
+      ✔ Should have correct token name and symbol
+      ✔ Should allow delegation to self
+      1) Should emit DelegateChanged event
+      ✔ Should allow delegation to another address
+      2) Should allow re-delegation
+      ✔ Should update voting power on token transfer
+    2️⃣ Proposal Creation & Threshold
+      ✔ Should reject proposal from user below threshold
+      ✔ Should allow proposal from user with sufficient voting power
+      3) Should check VOTING POWER, not raw balance
+      ✔ Should emit ProposalCreated with correct parameters
+      ✔ Should set correct voting type (Standard)
+      ✔ Should set correct voting type (Quadratic)
+    3️⃣ Proposal States & Lifecycle
+      ✔ Should start in Pending state (state = 0)
+      ✔ Should transition to Active after voting delay
+      4) Should transition to Defeated if quorum not met
+      ✔ Should transition to Succeeded if quorum met and majority for
+      ✔ Should transition to Defeated if majority against
+    4️⃣ Standard Voting (1T1V)
+      5) Should count votes 1:1 with voting power
+      6) Should emit VoteCast event
+      7) Should prevent double voting
+      8) Should allow multiple voters on same proposal
+      9) Should count abstain votes separately
+    5️⃣ Quadratic Voting Mechanism
+      ✔ Should calculate cost correctly: cost = votes²/1e18
+      10) Should allow multiple QV votes until power exhausted
+      ✔ Should reject if insufficient voting power
+      ✔ Should reject zero votes
+      ✔ Should NOT transfer tokens during QV voting
+      ✔ Should return correct remaining power
+      ✔ Should reject QV on standard proposal
+    6️⃣ Snapshot-Based Voting Power
+      ✔ Should use voting power from proposal creation block
+      ✔ Should lock voting power even if tokens transferred
+      ✔ Should use correct snapshot block number
+    7️⃣ Quorum Calculation & Enforcement
+      ✔ Should calculate 4% quorum correctly
+      11) Should defeat proposal when quorum not met
+      ✔ Should pass proposal when quorum met
+    8️⃣ Voting Period Boundaries
+      12) Should reject votes before voting starts (Pending state)
+      ✔ Should accept votes during Active period
+      13) Should reject votes after voting ends
+      ✔ Should have voting period of 50,400 blocks
+      ✔ Should have voting delay of 0 blocks
+    9️⃣ Pause Mechanism & Security
+      ✔ Should allow owner to pause
+      ✔ Should reject non-owner pause attempts
+      ✔ Should prevent voting when paused
+      ✔ Should allow unpause and resume operations
+    🔟 Edge Cases & Integration
+      ✔ Should handle maximum possible QV votes without overflow
+      ✔ Should handle proposal with empty description
+      ✔ Full lifecycle: Create → Vote → Succeed
+      ✔ Should handle multiple simultaneous proposals
+
+
+  36 passing (207ms)
+  13 failing
+
+  1) 🎯 COMPREHENSIVE Governance Test Suite
+       1️⃣ Token & Delegation System
+         Should emit DelegateChanged event:
+
+      AssertionError: Error in "DelegateChanged" event: Error in the 2nd argument assertion: expected '0x70997970C51812dc3A010C7d01b50e0d17dc79C8' to equal '0x0000000000000000000000000000000000000000'.
+      + expected - actual
+
+      -0x70997970C51812dc3A010C7d01b50e0d17dc79C8
+      +0x0000000000000000000000000000000000000000
+      
+      at Context.<anonymous> (test/Governance.test.js:84:13)
+
+  2) 🎯 COMPREHENSIVE Governance Test Suite
+       1️⃣ Token & Delegation System
+         Should allow re-delegation:
+     AssertionError: the given combination of arguments (bigint and bigint) is invalid for this assertion. You can use an array, a map, an object, a set, a string, or a weakset instead of a bigint
+      at Context.<anonymous> (test/Governance.test.js:112:64)
+
+  3) 🎯 COMPREHENSIVE Governance Test Suite
+       2️⃣ Proposal Creation & Threshold
+         Should check VOTING POWER, not raw balance:
+     AssertionError: Expected transaction to be reverted with custom error 'MyGovernor__BelowProposalThreshold', but it didn't revert
+      at Context.<anonymous> (test/Governance.test.js:169:13)
+
+  4) 🎯 COMPREHENSIVE Governance Test Suite
+       3️⃣ Proposal States & Lifecycle
+         Should transition to Defeated if quorum not met:
+     Error: VM Exception while processing transaction: reverted with custom error 'MyGovernor__BelowProposalThreshold(100000000000000000000, 1000000000000000000000)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor.propose (contracts/MyGovernor.sol:87)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.propose (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:261:24)
+  
+
+  5) 🎯 COMPREHENSIVE Governance Test Suite
+       4️⃣ Standard Voting (1T1V)
+         Should count votes 1:1 with voting power:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorNonexistentProposal(43613131508397530288060897760731860843349771355289720294227224802483837683590)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._validateStateBitmap (@openzeppelin/contracts/governance/Governor.sol:731)
+    at MyGovernor.queue (@openzeppelin/contracts/governance/Governor.sol:352)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:618)
+    at MyGovernor.castVote (@openzeppelin/contracts/governance/Governor.sol:510)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:348:13)
+  
+
+  6) 🎯 COMPREHENSIVE Governance Test Suite
+       4️⃣ Standard Voting (1T1V)
+         Should emit VoteCast event:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorNonexistentProposal(43613131508397530288060897760731860843349771355289720294227224802483837683590)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._validateStateBitmap (@openzeppelin/contracts/governance/Governor.sol:731)
+    at MyGovernor.queue (@openzeppelin/contracts/governance/Governor.sol:352)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:618)
+    at MyGovernor.castVote (@openzeppelin/contracts/governance/Governor.sol:510)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at waitForPendingTransaction (node_modules/@nomicfoundation/hardhat-chai-matchers/src/internal/emit.ts:28:17)
+    at Context.<anonymous> (test/Governance.test.js:357:13)
+  
+
+  7) 🎯 COMPREHENSIVE Governance Test Suite
+       4️⃣ Standard Voting (1T1V)
+         Should prevent double voting:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorNonexistentProposal(43613131508397530288060897760731860843349771355289720294227224802483837683590)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._validateStateBitmap (@openzeppelin/contracts/governance/Governor.sol:731)
+    at MyGovernor.queue (@openzeppelin/contracts/governance/Governor.sol:352)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:618)
+    at MyGovernor.castVote (@openzeppelin/contracts/governance/Governor.sol:510)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:363:13)
+  
+
+  8) 🎯 COMPREHENSIVE Governance Test Suite
+       4️⃣ Standard Voting (1T1V)
+         Should allow multiple voters on same proposal:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorNonexistentProposal(43613131508397530288060897760731860843349771355289720294227224802483837683590)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._validateStateBitmap (@openzeppelin/contracts/governance/Governor.sol:731)
+    at MyGovernor.queue (@openzeppelin/contracts/governance/Governor.sol:352)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:618)
+    at MyGovernor.castVote (@openzeppelin/contracts/governance/Governor.sol:510)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:372:13)
+  
+
+  9) 🎯 COMPREHENSIVE Governance Test Suite
+       4️⃣ Standard Voting (1T1V)
+         Should count abstain votes separately:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorNonexistentProposal(43613131508397530288060897760731860843349771355289720294227224802483837683590)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._validateStateBitmap (@openzeppelin/contracts/governance/Governor.sol:731)
+    at MyGovernor.queue (@openzeppelin/contracts/governance/Governor.sol:352)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:618)
+    at MyGovernor.castVote (@openzeppelin/contracts/governance/Governor.sol:510)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:382:13)
+  
+
+  10) 🎯 COMPREHENSIVE Governance Test Suite
+       5️⃣ Quadratic Voting Mechanism
+         Should allow multiple QV votes until power exhausted:
+     Error: VM Exception while processing transaction: reverted with custom error 'GovernorAlreadyCastVote("0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC")'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor._countVote (contracts/MyGovernor.sol:177)
+    at MyGovernor._castVote (@openzeppelin/contracts/governance/Governor.sol:637)
+    at MyGovernor._castVote (contracts/MyGovernor.sol:223)
+    at MyGovernor.castQuadraticVote (contracts/MyGovernor.sol:158)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.castQuadraticVote (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:435:13)
+  
+
+  11) 🎯 COMPREHENSIVE Governance Test Suite
+       7️⃣ Quorum Calculation & Enforcement
+         Should defeat proposal when quorum not met:
+     Error: VM Exception while processing transaction: reverted with custom error 'MyGovernor__BelowProposalThreshold(100000000000000000000, 1000000000000000000000)'
+    at MyGovernor.state (@openzeppelin/contracts/governance/Governor.sol:158)
+    at MyGovernor.propose (contracts/MyGovernor.sol:107)
+    at EdrProviderWrapper.request (node_modules/hardhat/src/internal/hardhat-network/provider/provider.ts:453:41)
+    at HardhatEthersSigner.sendTransaction (node_modules/@nomicfoundation/hardhat-ethers/src/signers.ts:185:18)
+    at send (node_modules/ethers/src.ts/contract/contract.ts:313:20)
+    at Proxy.propose (node_modules/ethers/src.ts/contract/contract.ts:352:16)
+    at Context.<anonymous> (test/Governance.test.js:646:24)
+  
+
+  12) 🎯 COMPREHENSIVE Governance Test Suite
+       8️⃣ Voting Period Boundaries
+         Should reject votes before voting starts (Pending state):
+     AssertionError: Expected transaction to be reverted with reason 'Governor: vote not currently active', but it didn't revert
+      at Context.<anonymous> (test/Governance.test.js:698:13)
+
+  13) 🎯 COMPREHENSIVE Governance Test Suite
+       8️⃣ Voting Period Boundaries
+         Should reject votes after voting ends:
+     AssertionError: Expected transaction to be reverted with reason 'Governor: vote not currently active', but it reverted with a custom error
+      at Context.<anonymous> (test/Governance.test.js:735:13)
+
+
+
+···············································································································
+|  [32m[1mSolidity and Network Configuration[22m[39m                                                                         │
+··························|·················|···············|·················|································
+|  [36mSolidity: 0.8.24[39m       ·  [36mOptim: true[39m    ·  [36mRuns: 200[39m    ·  [36mviaIR: false[39m   ·     [36mBlock: 60,000,000 gas[39m     │
+··························|·················|···············|·················|································
+|  [32m[1mMethods[22m[39m                                                                                                    │
+··························|·················|···············|·················|················|···············
+|  [32m[1mContracts / Methods[22m[39m    ·  [1mMin[22m            ·  [1mMax[22m          ·  [1mAvg[22m            ·  [1m# calls[22m       ·  [1musd (avg)[22m   │
+··························|·················|···············|·················|················|···············
+|  [1mGovernanceToken[22m        ·                                                                                   │
+··························|·················|···············|·················|················|···············
+|      delegate           ·         [36m28,510[39m  ·       [31m96,911[39m  ·         83,795  ·            11  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      transfer           ·         [36m56,317[39m  ·      [31m104,812[39m  ·         80,086  ·            10  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|  [1mMyGovernor[22m             ·                                                                                   │
+··························|·················|···············|·················|················|···············
+|      castQuadraticVote  ·        [36m139,861[39m  ·      [31m139,873[39m  ·        139,867  ·             6  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      castVote           ·         [36m70,668[39m  ·       [31m90,267[39m  ·         83,939  ·            12  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      pause              ·              [90m-[39m  ·            [90m-[39m  ·         27,744  ·             4  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      propose            ·         [36m80,816[39m  ·       [31m81,523[39m  ·         81,426  ·            42  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      propose            ·         [36m81,684[39m  ·      [31m101,644[39m  ·         94,960  ·            27  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|      unpause            ·              [90m-[39m  ·            [90m-[39m  ·         27,786  ·             1  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|  [32m[1mDeployments[22m[39m                              ·                                 ·  [1m% of limit[22m    ·              │
+··························|·················|···············|·················|················|···············
+|  [1mGovernanceToken[22m        ·              [90m-[39m  ·            [90m-[39m  ·      1,845,281  ·         3.1 %  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|  [1mMyGovernor[22m             ·              [90m-[39m  ·            [90m-[39m  ·      4,127,717  ·         6.9 %  ·           [32m[90m-[39m[32m[39m  │
+··························|·················|···············|·················|················|···············
+|  [32m[1mKey[22m[39m                                                                                                        │
+···············································································································
+|  [35m[1m◯[22m[39m  Execution gas for this method does not include intrinsic gas overhead                                   │
+···············································································································
+|  [35m[1m△[22m[39m  Cost was non-zero but below the precision setting for the currency display (see options)                │
+···············································································································
+|  [35mToolchain:[39m  hardhat                                                                                        │
+···············································································································
